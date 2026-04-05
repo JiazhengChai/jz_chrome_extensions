@@ -1,0 +1,152 @@
+:root {
+  color-scheme: light;
+  --bg: #f3efe7;
+  --panel: #fffdf8;
+  --panel-border: #d5cab8;
+  --text: #1f1a14;
+  --muted: #706557;
+  --accent: #0b6e4f;
+  --accent-strong: #07563d;
+  --shadow: 0 14px 30px rgba(37, 28, 13, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  background:
+    radial-gradient(circle at top left, rgba(11, 110, 79, 0.14), transparent 35%),
+    linear-gradient(180deg, #f8f4ed 0%, var(--bg) 100%);
+  color: var(--text);
+}
+
+.app {
+  width: 420px;
+  min-height: 520px;
+  padding: 18px;
+}
+
+.hero {
+  padding: 16px;
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  background: rgba(255, 253, 248, 0.9);
+  box-shadow: var(--shadow);
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.subtitle {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin: 14px 0;
+}
+
+button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  color: #fffdf8;
+  background: var(--accent);
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  background: var(--accent-strong);
+}
+
+button.secondary {
+  background: #8c7d68;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+  transform: none;
+}
+
+.status {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.image-list {
+  display: grid;
+  gap: 12px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.image-card {
+  display: grid;
+  grid-template-columns: auto 78px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: 0 8px 22px rgba(37, 28, 13, 0.08);
+}
+
+.image-checkbox {
+  inline-size: 18px;
+  block-size: 18px;
+}
+
+.preview {
+  width: 78px;
+  height: 78px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #e8dfd1;
+}
+
+.meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.name,
+.details {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.name {
+  font-weight: 700;
+}
+
+.details {
+  font-size: 12px;
+  color: var(--muted);
+}

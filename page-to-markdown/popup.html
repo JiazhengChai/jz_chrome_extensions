@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Page To Markdown</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="banner">
+        <p class="eyebrow">Readable export</p>
+        <h1>Page To Markdown</h1>
+        <p class="subtitle">Capture visible article-like text from the current page and save it as a Markdown file.</p>
+      </section>
+
+      <section class="controls">
+        <button id="previewButton" type="button" class="secondary">Preview</button>
+        <button id="downloadButton" type="button">Download Markdown</button>
+      </section>
+
+      <p id="status" class="status">Ready.</p>
+      <textarea id="preview" spellcheck="false" aria-label="Markdown preview"></textarea>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

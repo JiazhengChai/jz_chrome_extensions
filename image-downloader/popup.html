@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Page Image Downloader</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <p class="eyebrow">Current tab</p>
+        <h1>Image Downloader</h1>
+        <p class="subtitle">Collect images from the page and download the ones you want.</p>
+      </header>
+
+      <section class="toolbar">
+        <button id="refreshButton" type="button">Scan page</button>
+        <button id="toggleAllButton" type="button" class="secondary">Select all</button>
+        <button id="normalDownloadButton" type="button" class="secondary">Download files</button>
+        <button id="downloadButton" type="button">Download ZIP</button>
+      </section>
+
+      <p id="status" class="status">Ready.</p>
+      <div id="imageList" class="image-list"></div>
+    </main>
+
+    <template id="imageTemplate">
+      <label class="image-card">
+        <input type="checkbox" class="image-checkbox" checked />
+        <img class="preview" alt="Image preview" />
+        <span class="meta">
+          <span class="name"></span>
+          <span class="details"></span>
+        </span>
+      </label>
+    </template>
+
+    <script src="vendor/jszip.min.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
