@@ -40,6 +40,40 @@ function slugify(value) {
     .slice(0, 80) || 'page-images';
 }
 
+function shortenSlug(value, maxLength = 24) {
+  return value.slice(0, maxLength).replace(/-+$/g, '');
+}
+
+function getPageSlug(pageTitle, pageUrl) {
+  const titleSlug = slugify(pageTitle || 'page-images');
+
+  try {
+    const parsed = new URL(pageUrl);
+    const pathSegments = parsed.pathname
+      .split('/')
+      .filter(Boolean)
+      .map((segment) => shortenSlug(slugify(segment), 24))
+      .filter(Boolean);
+    const queryHints = ['id', 'conversation', 'chat', 'session', 'thread']
+      .map((key) => parsed.searchParams.get(key))
+      .filter(Boolean)
+      .map((value) => shortenSlug(slugify(value), 24));
+    const hashSlug = shortenSlug(slugify(parsed.hash.replace(/^#/, '')), 24);
+    const urlHints = [...pathSegments.slice(-2), ...queryHints, hashSlug]
+      .filter(Boolean)
+      .filter((segment, index, list) => list.indexOf(segment) === index);
+    const urlSlug = shortenSlug(urlHints.join('-'), 48);
+
+    if (urlSlug && !titleSlug.includes(urlSlug) && !urlSlug.includes(titleSlug)) {
+      return shortenSlug(`${titleSlug}-${urlSlug}`, 80);
+    }
+  } catch {
+    // Fall back to a title-based slug when the URL is unavailable.
+  }
+
+  return titleSlug;
+}
+
 function setBusyState(isBusy) {
   isDownloading = isBusy;
   downloadButton.disabled = isBusy;
@@ -82,6 +116,7 @@ function getArchiveName(pageTitle) {
 
 function getDownloadFolder(pageTitle, pageUrl) {
   let hostName = 'site';
+  const pageSlug = getPageSlug(pageTitle, pageUrl);
 
   try {
     const parsed = new URL(pageUrl);
@@ -90,7 +125,7 @@ function getDownloadFolder(pageTitle, pageUrl) {
     // Fall back to a generic host label when the active tab URL is unavailable.
   }
 
-  return `page-image-downloader/${hostName}-${slugify(pageTitle || 'page-images')}`;
+  return `page-image-downloader/${hostName}-${pageSlug}`;
 }
 
 async function fetchImageBlob(image) {

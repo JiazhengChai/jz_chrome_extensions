@@ -17,8 +17,43 @@ function slugify(value) {
     .slice(0, 80) || 'page';
 }
 
+function shortenSlug(value, maxLength = 24) {
+  return value.slice(0, maxLength).replace(/-+$/g, '');
+}
+
+function getPageSlug(pageTitle, pageUrl) {
+  const titleSlug = slugify(pageTitle || 'page');
+
+  try {
+    const parsed = new URL(pageUrl);
+    const pathSegments = parsed.pathname
+      .split('/')
+      .filter(Boolean)
+      .map((segment) => shortenSlug(slugify(segment), 24))
+      .filter(Boolean);
+    const queryHints = ['id', 'conversation', 'chat', 'session', 'thread']
+      .map((key) => parsed.searchParams.get(key))
+      .filter(Boolean)
+      .map((value) => shortenSlug(slugify(value), 24));
+    const hashSlug = shortenSlug(slugify(parsed.hash.replace(/^#/, '')), 24);
+    const urlHints = [...pathSegments.slice(-2), ...queryHints, hashSlug]
+      .filter(Boolean)
+      .filter((segment, index, list) => list.indexOf(segment) === index);
+    const urlSlug = shortenSlug(urlHints.join('-'), 48);
+
+    if (urlSlug && !titleSlug.includes(urlSlug) && !urlSlug.includes(titleSlug)) {
+      return shortenSlug(`${titleSlug}-${urlSlug}`, 80);
+    }
+  } catch {
+    // Fall back to a title-based slug when the URL is unavailable.
+  }
+
+  return titleSlug;
+}
+
 function getDownloadFolder(pageTitle, pageUrl) {
   let hostName = 'site';
+  const pageSlug = getPageSlug(pageTitle, pageUrl);
 
   try {
     const parsed = new URL(pageUrl);
@@ -27,7 +62,7 @@ function getDownloadFolder(pageTitle, pageUrl) {
     // Fall back to a generic host label when the active tab URL is unavailable.
   }
 
-  return `page-to-markdown/${hostName}-${slugify(pageTitle || 'page')}`;
+  return `page-to-markdown/${hostName}-${pageSlug}`;
 }
 
 async function getActiveTab() {
@@ -44,6 +79,7 @@ async function buildMarkdownExport() {
   const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     func: () => {
+      const GEMINI_HOST_PATTERN = /(^|\.)gemini\.google\.com$/i;
       const BLOCK_TAGS = new Set([
         'address', 'article', 'aside', 'blockquote', 'details', 'div', 'dl', 'fieldset', 'figcaption',
         'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hr', 'li', 'main',
@@ -60,6 +96,155 @@ async function buildMarkdownExport() {
 
       const title = document.title.trim() || 'Untitled page';
       const pageUrl = location.href;
+
+      const collectGeminiConversation = () => {
+        if (!GEMINI_HOST_PATTERN.test(location.hostname)) {
+          return null;
+        }
+
+        const speakerPattern = /^(you said|gemini said|show thinking\s+gemini said)$/i;
+        const isSpeakerLabel = (text) => speakerPattern.test(normalizeWhitespace(text));
+
+        const extractSpeaker = (text) => {
+          const normalized = normalizeWhitespace(text).toLowerCase();
+          if (normalized === 'you said') {
+            return 'You';
+          }
+          if (normalized.endsWith('gemini said')) {
+            return 'Gemini';
+          }
+          return '';
+        };
+
+        const getConversationTopic = (turns, fallbackTitle) => {
+          const preferredTurn = turns.find((turn) => turn.speaker === 'You' && turn.body.length > 20)
+            || turns.find((turn) => turn.body.length > 20)
+            || turns[0];
+
+          if (!preferredTurn?.body) {
+            return fallbackTitle;
+          }
+
+          const firstSentence = preferredTurn.body
+            .split(/(?<=[.!?])\s+/)
+            .map((part) => normalizeWhitespace(part))
+            .find(Boolean);
+          const source = normalizeWhitespace(firstSentence || preferredTurn.body);
+          const words = source.split(/\s+/).filter(Boolean).slice(0, 14);
+          const shortened = words.join(' ').slice(0, 90).replace(/[\s,:;.-]+$/g, '');
+
+          return shortened || fallbackTitle;
+        };
+
+        const getTurnBody = (container, labelElement) => {
+          const cloned = container.cloneNode(true);
+          const removableNodes = [];
+
+          cloned.querySelectorAll('*').forEach((candidate) => {
+            const text = normalizeWhitespace(candidate.textContent || '');
+            if (isSpeakerLabel(text)) {
+              removableNodes.push(candidate);
+            }
+          });
+
+          removableNodes.forEach((candidate) => candidate.remove());
+
+          const text = normalizeWhitespace(cloned.innerText || cloned.textContent || '');
+          if (text) {
+            return text;
+          }
+
+          const fallbackParts = [];
+          Array.from(container.childNodes).forEach((child) => {
+            if (labelElement && child === labelElement) {
+              return;
+            }
+
+            const childText = normalizeWhitespace(
+              child.nodeType === Node.TEXT_NODE ? child.textContent || '' : child.textContent || ''
+            );
+
+            if (childText && !isSpeakerLabel(childText)) {
+              fallbackParts.push(childText);
+            }
+          });
+
+          return normalizeWhitespace(fallbackParts.join(' '));
+        };
+
+        const getContainerForLabel = (labelElement) => {
+          let candidate = labelElement;
+          for (let depth = 0; depth < 6 && candidate?.parentElement; depth += 1) {
+            candidate = candidate.parentElement;
+            const text = normalizeWhitespace(candidate.innerText || candidate.textContent || '');
+            if (text.length > normalizeWhitespace(labelElement.textContent || '').length + 20) {
+              return candidate;
+            }
+          }
+          return labelElement.parentElement || labelElement;
+        };
+
+        const labelElements = Array.from(document.querySelectorAll('div, span, button, h1, h2, h3, h4, h5, h6, p'))
+          .filter((element) => {
+            const text = normalizeWhitespace(element.textContent || '');
+            if (!isSpeakerLabel(text)) {
+              return false;
+            }
+
+            const parentText = normalizeWhitespace(element.parentElement?.textContent || '');
+            return parentText.length <= text.length + 5000;
+          });
+
+        const seenContainers = new Set();
+        const turns = [];
+
+        labelElements.forEach((labelElement) => {
+          const speaker = extractSpeaker(labelElement.textContent || '');
+          if (!speaker) {
+            return;
+          }
+
+          const container = getContainerForLabel(labelElement);
+          if (!container || seenContainers.has(container)) {
+            return;
+          }
+
+          seenContainers.add(container);
+          const body = getTurnBody(container, labelElement);
+          if (!body) {
+            return;
+          }
+
+          turns.push({ speaker, body });
+        });
+
+        if (turns.length < 2) {
+          return null;
+        }
+
+        const conversationTitle = getConversationTopic(turns, title);
+
+        const lines = [];
+        lines.push(`# ${conversationTitle}`);
+        lines.push('');
+        lines.push(`Source: ${pageUrl}`);
+        lines.push('');
+
+        turns.forEach((turn) => {
+          lines.push(`## ${turn.speaker}`);
+          lines.push('');
+          lines.push(turn.body);
+          lines.push('');
+        });
+
+        const markdown = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+        return { title: conversationTitle, pageUrl, markdown };
+      };
+
+      const geminiConversation = collectGeminiConversation();
+      if (geminiConversation) {
+        return geminiConversation;
+      }
 
       const isVisible = (element) => {
         if (!(element instanceof Element)) {
@@ -404,7 +589,7 @@ async function downloadMarkdown() {
     return;
   }
 
-  const fileName = `${slugify(latestExport.title)}.md`;
+  const fileName = `${getPageSlug(latestExport.title, latestExport.pageUrl)}.md`;
   const downloadFolder = getDownloadFolder(latestExport.title, latestExport.pageUrl);
   const blob = new Blob([latestExport.markdown], { type: 'text/markdown;charset=utf-8' });
   const blobUrl = URL.createObjectURL(blob);
