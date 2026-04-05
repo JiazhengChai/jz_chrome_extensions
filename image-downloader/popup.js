@@ -80,6 +80,19 @@ function getArchiveName(pageTitle) {
   return `${slugify(pageTitle)}-images.zip`;
 }
 
+function getDownloadFolder(pageTitle, pageUrl) {
+  let hostName = 'site';
+
+  try {
+    const parsed = new URL(pageUrl);
+    hostName = slugify(parsed.hostname.replace(/^www\./i, '')) || 'site';
+  } catch {
+    // Fall back to a generic host label when the active tab URL is unavailable.
+  }
+
+  return `page-image-downloader/${hostName}-${slugify(pageTitle || 'page-images')}`;
+}
+
 async function fetchImageBlob(image) {
   const response = await fetch(image.url, {
     credentials: 'include',
@@ -328,6 +341,7 @@ async function downloadSelected() {
   try {
     const activeTab = await getActiveTab();
     const pageTitle = activeTab?.title || 'page-images';
+    const downloadFolder = getDownloadFolder(pageTitle, activeTab?.url || '');
     const zip = new JSZip();
     let addedCount = 0;
     const failedImages = [];
@@ -373,7 +387,7 @@ async function downloadSelected() {
     try {
       await chrome.downloads.download({
         url: archiveUrl,
-        filename: `page-images/${getArchiveName(pageTitle)}`,
+        filename: `${downloadFolder}/${getArchiveName(pageTitle)}`,
         conflictAction: 'uniquify',
         saveAs: false,
       });
@@ -407,6 +421,9 @@ async function downloadSelectedNormally() {
   setStatus(`Queueing ${selectedImages.length} file${selectedImages.length === 1 ? '' : 's'}...`);
 
   try {
+    const activeTab = await getActiveTab();
+    const pageTitle = activeTab?.title || 'page-images';
+    const downloadFolder = getDownloadFolder(pageTitle, activeTab?.url || '');
     let queuedCount = 0;
     let failedCount = 0;
 
@@ -416,7 +433,7 @@ async function downloadSelectedNormally() {
       try {
         await chrome.downloads.download({
           url: image.url,
-          filename: `page-images/${String(index + 1).padStart(2, '0')}-${image.downloadName}`,
+          filename: `${downloadFolder}/${String(index + 1).padStart(2, '0')}-${image.downloadName}`,
           conflictAction: 'uniquify',
           saveAs: false,
         });

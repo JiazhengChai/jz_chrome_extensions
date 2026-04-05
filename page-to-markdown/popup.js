@@ -17,6 +17,19 @@ function slugify(value) {
     .slice(0, 80) || 'page';
 }
 
+function getDownloadFolder(pageTitle, pageUrl) {
+  let hostName = 'site';
+
+  try {
+    const parsed = new URL(pageUrl);
+    hostName = slugify(parsed.hostname.replace(/^www\./i, '')) || 'site';
+  } catch {
+    // Fall back to a generic host label when the active tab URL is unavailable.
+  }
+
+  return `page-to-markdown/${hostName}-${slugify(pageTitle || 'page')}`;
+}
+
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
@@ -392,13 +405,14 @@ async function downloadMarkdown() {
   }
 
   const fileName = `${slugify(latestExport.title)}.md`;
+  const downloadFolder = getDownloadFolder(latestExport.title, latestExport.pageUrl);
   const blob = new Blob([latestExport.markdown], { type: 'text/markdown;charset=utf-8' });
   const blobUrl = URL.createObjectURL(blob);
 
   try {
     await chrome.downloads.download({
       url: blobUrl,
-      filename: `page-markdown/${fileName}`,
+      filename: `${downloadFolder}/${fileName}`,
       conflictAction: 'uniquify',
       saveAs: false,
     });

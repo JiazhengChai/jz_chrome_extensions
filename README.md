@@ -26,4 +26,5 @@ Both extensions use Manifest V3.
 
 - The image downloader now looks at regular images, common lazy-load attributes, `srcset` candidates, video posters, and CSS background images. You can either queue normal per-file downloads or bundle the selected set into one ZIP archive.
 - The Markdown exporter now scores likely article containers and converts more page structure into Markdown, including headings, paragraphs, lists, blockquotes, code blocks, tables, and image alt text.
+- Downloads are grouped into extension-specific folders with page-identifiable names, such as `page-image-downloader/example-com-article-title/` and `page-to-markdown/example-com-article-title/`.
 - Some websites restrict asset downloads with cookies, expiring URLs, or CSP. In those cases, behavior depends on the site.
