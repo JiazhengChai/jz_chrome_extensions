@@ -9,7 +9,7 @@
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
-  "permissions": ["activeTab", "scripting", "downloads", "storage"],
+  "permissions": ["activeTab", "scripting", "downloads", "storage", "debugger"],
   "action": {
     "default_title": "Page To Markdown",
     "default_icon": {

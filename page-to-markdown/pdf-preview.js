@@ -2,10 +2,156 @@ const titleElement = document.getElementById('documentTitle');
 const sourceElement = document.getElementById('documentSource');
 const contentElement = document.getElementById('documentContent');
 const statusElement = document.getElementById('statusMessage');
-const printButton = document.getElementById('printButton');
+const saveButton = document.getElementById('saveButton');
+
+let currentExportData = null;
 
 function setStatus(message) {
   statusElement.textContent = message;
+}
+
+saveButton.disabled = true;
+
+function getCurrentTab() {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.getCurrent((tab) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message));
+        return;
+      }
+
+      if (tab?.id) {
+        resolve(tab);
+        return;
+      }
+
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const queryError = chrome.runtime.lastError;
+        if (queryError) {
+          reject(new Error(queryError.message));
+          return;
+        }
+
+        resolve(tabs[0]);
+      });
+    });
+  });
+}
+
+function attachDebugger(target) {
+  return new Promise((resolve, reject) => {
+    chrome.debugger.attach(target, '1.3', () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message));
+        return;
+      }
+
+      resolve();
+    });
+  });
+}
+
+function detachDebugger(target) {
+  return new Promise((resolve) => {
+    chrome.debugger.detach(target, () => {
+      resolve();
+    });
+  });
+}
+
+function sendDebuggerCommand(target, method, params = {}) {
+  return new Promise((resolve, reject) => {
+    chrome.debugger.sendCommand(target, method, params, (result) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message));
+        return;
+      }
+
+      resolve(result);
+    });
+  });
+}
+
+function base64ToBlob(base64, mimeType) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new Blob([bytes], { type: mimeType });
+}
+
+async function savePdf(exportData) {
+  if (!exportData?.downloadFolder || !exportData?.pdfFileName) {
+    throw new Error('Missing PDF export target. Re-open the PDF preview from the popup.');
+  }
+
+  const tab = await getCurrentTab();
+
+  if (!tab?.id) {
+    throw new Error('Unable to identify the PDF preview tab.');
+  }
+
+  const debuggee = { tabId: tab.id };
+  let attached = false;
+
+  try {
+    await attachDebugger(debuggee);
+    attached = true;
+
+    await sendDebuggerCommand(debuggee, 'Page.enable');
+    const result = await sendDebuggerCommand(debuggee, 'Page.printToPDF', {
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
+
+    if (!result?.data) {
+      throw new Error('PDF rendering did not produce any data.');
+    }
+
+    const pdfBlob = base64ToBlob(result.data, 'application/pdf');
+    const blobUrl = URL.createObjectURL(pdfBlob);
+
+    try {
+      await chrome.downloads.download({
+        url: blobUrl,
+        filename: `${exportData.downloadFolder}/${exportData.pdfFileName}`,
+        conflictAction: 'uniquify',
+        saveAs: false,
+      });
+    } finally {
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 5_000);
+    }
+  } finally {
+    if (attached) {
+      await detachDebugger(debuggee);
+    }
+  }
+}
+
+async function runPdfSave() {
+  if (!currentExportData) {
+    return;
+  }
+
+  saveButton.disabled = true;
+  setStatus('Saving PDF to the same folder as the Markdown export...');
+
+  try {
+    await savePdf(currentExportData);
+    setStatus('Saved PDF to the same folder as the Markdown export.');
+  } catch (error) {
+    console.error(error);
+    setStatus('Direct PDF save failed. Falling back to the print dialog.');
+    window.print();
+  } finally {
+    saveButton.disabled = false;
+  }
 }
 
 function escapeHtml(value) {
@@ -262,15 +408,18 @@ async function loadPendingExport() {
 async function initialize() {
   try {
     const exportData = await loadPendingExport();
+    currentExportData = exportData;
     const sourceUrl = sanitizeUrl(exportData.pageUrl);
 
     document.title = `${exportData.title} - PDF Preview`;
     titleElement.textContent = exportData.title;
     sourceElement.innerHTML = `Source: <a href="${escapeHtml(sourceUrl)}">${escapeHtml(exportData.pageUrl)}</a>`;
     contentElement.innerHTML = renderMarkdown(exportData.markdown);
-    setStatus('Print dialog should open automatically.');
+    setStatus('Saving PDF to the same folder as the Markdown export...');
 
-    window.setTimeout(() => window.print(), 300);
+    window.setTimeout(() => {
+      void runPdfSave();
+    }, 300);
   } catch (error) {
     console.error(error);
     titleElement.textContent = 'Unable to prepare PDF';
@@ -280,9 +429,12 @@ async function initialize() {
   }
 }
 
-printButton.addEventListener('click', () => window.print());
+saveButton.addEventListener('click', () => {
+  void runPdfSave();
+});
+
 window.addEventListener('afterprint', () => {
-  setStatus('Print dialog closed. You can print again or close this tab.');
+  setStatus('Print dialog closed. You can save again or close this tab.');
 });
 
 initialize();

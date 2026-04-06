@@ -639,12 +639,16 @@ async function openPdfPreview() {
   }
 
   const storageKey = `pending-pdf-export:${Date.now()}:${crypto.randomUUID()}`;
+  const downloadFolder = getDownloadFolder(latestExport.title, latestExport.pageUrl);
+  const pdfFileName = `${getDownloadFileStem(latestExport.title, latestExport.pageUrl)}.pdf`;
 
   setStatus('Preparing PDF preview...');
   await chrome.storage.session.set({
     [storageKey]: {
       ...latestExport,
       createdAt: Date.now(),
+      downloadFolder,
+      pdfFileName,
     },
   });
 
@@ -652,7 +656,7 @@ async function openPdfPreview() {
     url: chrome.runtime.getURL(`pdf-preview.html?storageKey=${encodeURIComponent(storageKey)}`),
   });
 
-  setStatus('PDF preview opened. Choose Save as PDF in the print dialog.');
+  setStatus('PDF preview opened. The PDF will save to the same folder as the Markdown export.');
 }
 
 previewButton.addEventListener('click', refreshPreview);
