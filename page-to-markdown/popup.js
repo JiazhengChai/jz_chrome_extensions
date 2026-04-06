@@ -22,6 +22,27 @@ function shortenSlug(value, maxLength = 24) {
   return value.slice(0, maxLength).replace(/-+$/g, '');
 }
 
+function shortHash(value) {
+  let hash = 0x811c9dc5;
+  const input = String(value || '');
+
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+function getPageHostName(pageUrl) {
+  try {
+    const parsed = new URL(pageUrl);
+    return slugify(parsed.hostname.replace(/^www\./i, '')) || 'site';
+  } catch {
+    return 'site';
+  }
+}
+
 function getPageSlug(pageTitle, pageUrl) {
   const titleSlug = slugify(pageTitle || 'page');
 
@@ -53,17 +74,17 @@ function getPageSlug(pageTitle, pageUrl) {
 }
 
 function getDownloadFolder(pageTitle, pageUrl) {
-  let hostName = 'site';
+  const hostName = getPageHostName(pageUrl);
   const pageSlug = getPageSlug(pageTitle, pageUrl);
 
-  try {
-    const parsed = new URL(pageUrl);
-    hostName = slugify(parsed.hostname.replace(/^www\./i, '')) || 'site';
-  } catch {
-    // Fall back to a generic host label when the active tab URL is unavailable.
-  }
-
   return `page-to-markdown/${hostName}-${pageSlug}`;
+}
+
+function getDownloadFileStem(pageTitle, pageUrl) {
+  const pageSlug = getPageSlug(pageTitle, pageUrl);
+  const uniqueSuffix = shortHash(pageUrl || pageSlug);
+
+  return shortenSlug(`${pageSlug}-${uniqueSuffix}`, 96);
 }
 
 async function getActiveTab() {
@@ -590,7 +611,7 @@ async function downloadMarkdown() {
     return;
   }
 
-  const fileName = `${getPageSlug(latestExport.title, latestExport.pageUrl)}.md`;
+  const fileName = `${getDownloadFileStem(latestExport.title, latestExport.pageUrl)}.md`;
   const downloadFolder = getDownloadFolder(latestExport.title, latestExport.pageUrl);
   const blob = new Blob([latestExport.markdown], { type: 'text/markdown;charset=utf-8' });
   const blobUrl = URL.createObjectURL(blob);
