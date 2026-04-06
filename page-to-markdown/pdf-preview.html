@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Page To Markdown PDF Preview</title>
+    <link rel="stylesheet" href="pdf-preview.css" />
+  </head>
+  <body>
+    <header class="toolbar screen-only">
+      <div>
+        <p class="eyebrow">Print-friendly export</p>
+        <h1 id="documentTitle">Preparing PDF...</h1>
+        <p id="documentSource" class="source"></p>
+      </div>
+      <div class="actions">
+        <button id="printButton" type="button">Print Again</button>
+      </div>
+    </header>
+
+    <main class="sheet">
+      <article id="documentContent" class="document" aria-live="polite"></article>
+    </main>
+
+    <p id="statusMessage" class="status screen-only">Loading export...</p>
+
+    <script src="pdf-preview.js"></script>
+  </body>
+</html>

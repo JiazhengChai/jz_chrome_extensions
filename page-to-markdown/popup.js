@@ -2,6 +2,7 @@ const statusElement = document.getElementById('status');
 const previewElement = document.getElementById('preview');
 const previewButton = document.getElementById('previewButton');
 const downloadButton = document.getElementById('downloadButton');
+const pdfButton = document.getElementById('pdfButton');
 
 let latestExport = null;
 
@@ -607,7 +608,34 @@ async function downloadMarkdown() {
   }
 }
 
+async function openPdfPreview() {
+  if (!latestExport) {
+    await refreshPreview();
+  }
+
+  if (!latestExport) {
+    return;
+  }
+
+  const storageKey = `pending-pdf-export:${Date.now()}:${crypto.randomUUID()}`;
+
+  setStatus('Preparing PDF preview...');
+  await chrome.storage.session.set({
+    [storageKey]: {
+      ...latestExport,
+      createdAt: Date.now(),
+    },
+  });
+
+  await chrome.tabs.create({
+    url: chrome.runtime.getURL(`pdf-preview.html?storageKey=${encodeURIComponent(storageKey)}`),
+  });
+
+  setStatus('PDF preview opened. Choose Save as PDF in the print dialog.');
+}
+
 previewButton.addEventListener('click', refreshPreview);
 downloadButton.addEventListener('click', downloadMarkdown);
+pdfButton.addEventListener('click', openPdfPreview);
 
 refreshPreview();
